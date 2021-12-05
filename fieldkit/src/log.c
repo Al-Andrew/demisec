@@ -30,7 +30,7 @@ static void fk_log_impl(fk_log_level_t level, const char* fmt, va_list args) {
     strftime(timeStr, sizeof(timeStr), "%H:%M:%S", tm_info);
     printf("[%s] ", timeStr);
 
-    printf("[%s] ", log_level_names[level]);
+    printf("[%s] : ", log_level_names[level]);
     vprintf(fmt, args);
     putc('\n', stdout);
 } // static void fk_log_impl(fk_log_level_t level, const char* fmt, va_list args)
