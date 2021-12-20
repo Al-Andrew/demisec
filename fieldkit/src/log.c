@@ -4,9 +4,7 @@
 #include <time.h>
 
 
-
-static fk_log_level_t fk_g_log_level = FK_LOG_LEVEL_TRACE;
-
+static fk_log_level_t fk_g_log_level = FK_LOG_LEVEL_INFO;
 
 void fk_set_log_level(fk_log_level_t level) {
     fk_g_log_level = level;

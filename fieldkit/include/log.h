@@ -1,8 +1,6 @@
 #ifndef FK_LOG_H
 #define FK_LOG_H
 
-
-
 typedef enum fk_log_level_t {
     FK_LOG_LEVEL_NONE,
     FK_LOG_LEVEL_TRACE,
