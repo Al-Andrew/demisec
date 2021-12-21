@@ -69,3 +69,50 @@ int fk_tcp_connect(fk_tcp_connection_t* con, char* ip, int port) {
     }
     return 0;
 }
+
+void fk_message_release(fk_message_t* msg) {
+    if(msg->data != NULL)
+        free(msg->data);
+    bzero(msg, sizeof(fk_message_t));
+}
+
+int fk_tcp_plain_message_read(fk_tcp_connection_t con, fk_message_t* msg) {
+    fk_message_release(msg); // We want to write in a clean response_t
+
+    char* data = NULL;
+    int dlen = 0;
+    char metadata[fk_message_metatada_len];
+    int code;
+
+    int l1 = read(con.sock, &code, sizeof(int));
+    int l2 = read(con.sock, metadata, fk_message_metatada_len);
+    int l3 = read(con.sock, &dlen, sizeof(int));
+    data = malloc(dlen * sizeof(char));
+    int l4 = read(con.sock, data, dlen);
+
+    if(l1 < 0 || l2 < 0 || l3 < 0|| l4 < 0 ) {
+        fk_traceln("Failed to read message from tcp connection: %s", strerror(errno));
+        return -1;
+    }
+
+    msg->code = code;
+    strcpy(msg->metadata, metadata);
+    msg->dlen = dlen;
+    msg->data = data;
+
+    return 0;
+}
+
+int fk_tcp_plain_message_write(fk_tcp_connection_t con, fk_message_t msg) {
+    int l1 = write(con.sock, &msg.code, sizeof(int));
+    int l2 = write(con.sock, msg.metadata, fk_message_metatada_len);
+    int l3 = write(con.sock, &msg.dlen, sizeof(int));
+    int l4 = write(con.sock, msg.data, msg.dlen);
+
+    if(l1 < 0 || l2 < 0 || l3 < 0|| l4 < 0 ) {
+        fk_traceln("Failed to write message to tcp connection: %s", strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
