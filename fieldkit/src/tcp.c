@@ -70,6 +70,16 @@ int fk_tcp_connect(fk_tcp_connection_t* con, char* ip, int port) {
     return 0;
 }
 
+fk_message_t fk_message_empty() {
+    fk_message_t ret;
+    ret.code = 0;
+    bzero(ret.metadata, fk_message_metatada_len);
+    ret.dlen = 0;
+    ret.data = NULL;
+    
+    return ret;
+}
+
 void fk_message_release(fk_message_t* msg) {
     if(msg->data != NULL)
         free(msg->data);

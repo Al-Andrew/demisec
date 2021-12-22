@@ -24,7 +24,7 @@ typedef struct fk_message_t {
     char* data;
 }fk_message_t;
 
-
+fk_message_t fk_message_empty();
 void fk_message_release(fk_message_t* msg);
 int fk_tcp_plain_message_read(fk_tcp_connection_t con, fk_message_t* msg);
 int fk_tcp_plain_message_write(fk_tcp_connection_t con, fk_message_t msg);
