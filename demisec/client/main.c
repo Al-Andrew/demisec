@@ -19,7 +19,7 @@ const char* self_sk = "(public-key  (rsa (n #00C534FB9FF6E7728A1BB068F8B8B6AC7D7
 const char* oth_sk = "(public-key (rsa (n #00E16F15FF8FD8D493D410D447EABF68AFCD316D7D2B66189C29A63C661152C5A089018C635AE4C4B5DEDA5929740E6AAA495719DC6C0966268C8303951B6D3EBF460FD475EAE3F05D5AA1BA1B66FF4E9ED8A3D909F600864D111A878C45A72C637C053AC241DC68E3E97C363ECF4008418728B2787BC8FFCCF30CA498FCF7DBE07C16AF4E84CA79B0C89C950E2B0E722D4A7115C5823922BFC382544F249F5E411E792090257F712A94B4759EBF53E8557BDF0FBC3BAC4ADE9F23EF39D341534A5AC46EBF5B894CC31196C9CA6F0852D71CA7499E2C9E2B304CA79F9B30C35518C6AEC1B811E3E13D56143B352F1032682C5EE5EE4CDB1E9A308A54255F029A85#)(e #010001#) ))";
 
 int main(int argc, char** argv) {
-    fk_set_log_level(FK_LOG_LEVEL_TRACE);
+    fk_set_log_level(FK_LOG_LEVEL_INFO);
 
     int* port = fk_arg_int("p", "port", "The port where we should connect to the server", 9922);
     char** ip = fk_arg_string("i", "ip", "The server's ipv4 adress", "127.0.0.1");
@@ -36,15 +36,28 @@ int main(int argc, char** argv) {
     fk_crypto_tunnel_t tun;
     fk_crypto_tunnel_new(&server, &tun, self_sk, self_pk, oth_sk);
 
-    if(login(tun) != 0) {
+    char prompt[256] = {'\0'};  
+    if(login(tun, prompt) != 0) {
         fk_crypto_tunnel_release(&tun);
         exit(1);
     }
-    
+
+    strcat(prompt, "|");
+    fk_message_t pre_user = fk_message_empty();
+    pre_user.data = "cd /home/";
+    pre_user.dlen = 10;
+    fk_crypto_aes_message_write(tun, pre_user);
+    fk_message_t pre_resp = fk_message_empty();
+    fk_crypto_aes_message_read(tun, &pre_resp);
+    strncat(prompt, pre_resp.data, pre_resp.dlen);
+    strcat(prompt, "> ");
+
     bool quit = false;
     while(!quit) {
         fk_message_t req = fk_message_empty();
         fk_message_t resp = fk_message_empty();
+
+        printf("\n%s", prompt);
 
         getline(&req.data, &req.dlen, stdin);
         req.dlen = strlen(req.data);
@@ -53,9 +66,15 @@ int main(int argc, char** argv) {
         fk_crypto_aes_message_read(tun, &resp);
         if( resp.code == 1) {
             quit = true;
+        } else if( resp.code == 2) {
+            strncpy(strchr(prompt, '|') + 1, resp.data, resp.dlen);
+            strcat(prompt, "> ");
         } else {
-            printf("%.*s code: %d\n", resp.dlen, resp.data, resp.code);
+            printf("%.*s", resp.dlen, resp.data);
         }
+
+        fk_message_release(&req);
+        fk_message_release(&resp);
     }
     return 0;
 }

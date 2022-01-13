@@ -4,7 +4,7 @@
 #include "crypto.h"
 
 void add_user();
-int login(fk_crypto_tunnel_t tun);
+int login(fk_crypto_tunnel_t tun, char* r_username);
 int authorize_user(fk_crypto_tunnel_t tun);
 
 

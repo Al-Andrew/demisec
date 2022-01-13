@@ -12,8 +12,7 @@ void* split(char *line, int linelen, int* size)
 {
     void* result;
     int spaces = 0;
-    for (int i = 0; i <= linelen; ++i)
-    {
+    for (int i = 0; i <= linelen; ++i) {
         if (line[i] == ' ')
             spaces++;
     }
@@ -38,10 +37,74 @@ void* split(char *line, int linelen, int* size)
 
 fk_message_t fork_exec(int argc, char** argv ) {
     fk_message_t ret = fk_message_empty();
-    const char text[] = "unimplemented";
-    ret.data = malloc(strlen(text));
-    strcpy(ret.data, text);
-    ret.dlen = strlen(text);
+    ret.dlen = 256;
+    ret.data = malloc(ret.dlen);
+    bzero(ret.data, ret.dlen);
+    int used = 0;
+
+    int pdes[2];
+    int perr[2];
+    pipe(pdes);
+    pipe(perr);
+
+    switch (fork())
+    {
+    case -1:
+        fk_errorln("Fork failed in fork_exec");
+        exit(1);
+        break;
+    case  0: // Support shell functions like |, <, >, 2>, &&, ||, ;
+        dup2(pdes[1], STDOUT_FILENO);
+        dup2(perr[1], STDERR_FILENO);
+        close(pdes[1]);
+        close(pdes[0]);
+        close(perr[1]);
+        close(perr[0]);
+        execvp(argv[0], argv);
+        break;
+    default:
+        close(pdes[1]);
+        close(perr[1]);
+        int bytes;
+        char buff[256] = {0};
+        fk_traceln("Reading from pipe stdout");
+        while( (bytes = read(pdes[0], buff, 255)) > 0 ) {
+            fk_traceln("Read %d bytes", bytes);
+            used += bytes;
+            strncat(ret.data, buff,255);
+            bzero(buff, 256);
+            if(used >= ret.dlen - ret.dlen/256) {
+                ret.dlen += 256;
+                fk_traceln("Message buffer full, allocating extra 256 bytes, total: %d", ret.dlen);
+                char* newbuff = malloc(ret.dlen);
+                bzero(newbuff, ret.dlen);
+                strncpy(newbuff, ret.data, ret.dlen/2);
+                free(ret.data);
+                ret.data = newbuff;
+            }
+        }
+        close(pdes[0]);
+        fk_traceln("Reading from pipe stderr");
+        while( (bytes = read(perr[0], buff, 255)) > 0 ) {
+            fk_traceln("Read %d bytes", bytes);
+            used += bytes;
+            strncat(ret.data, buff, 255);
+            bzero(buff, 256);
+            if(used >= ret.dlen - ret.dlen/256) {
+                ret.dlen += 256;
+                fk_traceln("Message buffer full, allocating extra 256 bytes, total: %d", ret.dlen);
+                char* newbuff = malloc(ret.dlen);
+                bzero(newbuff, ret.dlen);
+                strncpy(newbuff, ret.data, ret.dlen/2);
+                free(ret.data);
+                ret.data = newbuff;
+            }
+        }
+        close(perr[0]);
+        wait(&ret.code);
+        break;
+    }
+    ret.code = 0;
     return ret;
 }
 
@@ -58,6 +121,7 @@ fk_message_t print_dir(int argc, char** argv ) {
     fk_message_t ret = fk_message_empty();
     ret.data = getcwd(NULL, 0);
     ret.dlen = strlen(ret.data);
+    ret.code = 0;
     return ret;
 }
 

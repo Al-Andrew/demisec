@@ -62,7 +62,7 @@ void add_user() {
     fclose(passwd);
 }
 
-int login(fk_crypto_tunnel_t tun) {
+int login(fk_crypto_tunnel_t tun, char* r_username) {
     int usr_len = 32, pass_len = 32;
     char* usr = malloc(usr_len), *pass = malloc(pass_len);
     fk_message_t msg = fk_message_empty();
@@ -91,8 +91,10 @@ int login(fk_crypto_tunnel_t tun) {
     fk_crypto_aes_message_read(tun, &resp);
 
     int success = -1;
-    if( strncmp(resp.data, "success", msg.dlen) == 0 )
+    if( strncmp(resp.data, "success", msg.dlen) == 0 ) {
         success = 0;
+        strncpy(r_username, usr, strlen(usr) - 1);
+    }
     fk_infoln("Login %s", (success == 0)?"successfull":"failed");
     fk_message_release(&msg);
     fk_message_release(&resp);
