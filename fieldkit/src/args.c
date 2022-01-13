@@ -225,7 +225,7 @@ static int fk_args_search_short(char* arg_candidate) {
 void fk_parse_args(int argc,char** argv) {
 
     for (int i = 1; i < argc ; ++i ) {
-
+        fk_traceln("Trying to match arg: %s", argv[i]);
         if ( argv[i][0] != '-' )
             fk_args_err("%s is not a flag.", argv[i]);
 
@@ -240,16 +240,25 @@ void fk_parse_args(int argc,char** argv) {
             fk_args_err("%s is not a flag.", argv[i]);
 
         switch ( fk_g_flags[flag_index].type ) {
-            case FK_FLAG_BOOL:
+            case FK_FLAG_BOOL: {
+
+                fk_traceln("Found matching flag of type bool");
                 if ( i+1 >= argc )
                     fk_args_err("Could not parse flag value. Got (null), expected [true|false].");
 
-                if ( strcmp("true", argv[++i]) == 0 )
+                if ( strcmp("true", argv[++i]) == 0 ) {
+                    fk_traceln("Matched arg %s with true", argv[i-1]);
                     *((bool*)fk_g_flags[flag_index].buffer) = true;
-                if ( strcmp("false", argv[++i]) == 0 )
+                    continue;
+                }
+                if ( strcmp("false", argv[++i]) == 0 ) {
+                    fk_traceln("Matched arg %s with false", argv[i-1]);
                     *((bool*)fk_g_flags[flag_index].buffer) = false;
+                    continue;
+                }
 
                 fk_args_err("Could not parse flag value. Got \"%s\", expected [true|false].", argv[++i]);
+                }
                 break;
             case FK_FLAG_STRING:
                 if ( i+1 >= argc )

@@ -87,38 +87,38 @@ void fk_message_release(fk_message_t* msg) {
 }
 
 int fk_tcp_plain_message_read(fk_tcp_connection_t con, fk_message_t* msg) {
-    fk_message_release(msg); // We want to write in a clean response_t
+    fk_traceln("Reading plain message");
+    fk_message_release(msg); // We want to write in a clean message
+    *msg = fk_message_empty();
 
-    char* data = NULL;
-    int dlen = 0;
-    char metadata[fk_message_metatada_len];
-    int code;
+    int l1 = read(con.sock, &msg->code, sizeof(int));
+    int l2 = read(con.sock, msg->metadata, fk_message_metatada_len);
+    int l3 = read(con.sock, &msg->dlen, sizeof(int));
+    msg->data = malloc(msg->dlen * sizeof(char));
+    int l4 = read(con.sock, msg->data, msg->dlen);
 
-    int l1 = read(con.sock, &code, sizeof(int));
-    int l2 = read(con.sock, metadata, fk_message_metatada_len);
-    int l3 = read(con.sock, &dlen, sizeof(int));
-    data = malloc(dlen * sizeof(char));
-    int l4 = read(con.sock, data, dlen);
-
+    fk_traceln("Got: code: %d, metadata: %.*s, len: %d, data: %.*s", msg->code,
+                                                                            fk_message_metatada_len, msg->metadata,
+                                                                            msg->dlen, msg->dlen,msg->data);
+    fk_traceln("l1: %d |l2: %d |l3: %d |l4: %d", l1, l2, l3, l4);
     if(l1 < 0 || l2 < 0 || l3 < 0|| l4 < 0 ) {
         fk_traceln("Failed to read message from tcp connection: %s", strerror(errno));
         return -1;
     }
 
-    msg->code = code;
-    strcpy(msg->metadata, metadata);
-    msg->dlen = dlen;
-    msg->data = data;
-
     return 0;
 }
 
 int fk_tcp_plain_message_write(fk_tcp_connection_t con, fk_message_t msg) {
+    fk_traceln("Writing plain message:\n\tcode: %d\n\tmetadata: %.*s\n\tlen: %d\n\tdata: %.*s", msg.code,
+                                                                            fk_message_metatada_len, msg.metadata,
+                                                                            msg.dlen, msg.dlen,msg.data);
     int l1 = write(con.sock, &msg.code, sizeof(int));
     int l2 = write(con.sock, msg.metadata, fk_message_metatada_len);
     int l3 = write(con.sock, &msg.dlen, sizeof(int));
     int l4 = write(con.sock, msg.data, msg.dlen);
 
+    fk_traceln("l1: %d |l2: %d |l3: %d |l4: %d", l1, l2, l3, l4);
     if(l1 < 0 || l2 < 0 || l3 < 0|| l4 < 0 ) {
         fk_traceln("Failed to write message to tcp connection: %s", strerror(errno));
         return -1;

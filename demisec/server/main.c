@@ -4,6 +4,10 @@
 #include <args.h>
 #include <log.h>
 #include <tcp.h>
+#include <try.h>
+#include <crypto.h>
+#include <user.h>
+#include "shell_dispatch.h"
 
 #include <sys/wait.h>
 #include <unistd.h>
@@ -11,49 +15,79 @@
 #include <string.h>
 #include <arpa/inet.h>
 
+const char* self_pk = "(private-key (rsa (n #00E16F15FF8FD8D493D410D447EABF68AFCD316D7D2B66189C29A63C661152C5A089018C635AE4C4B5DEDA5929740E6AAA495719DC6C0966268C8303951B6D3EBF460FD475EAE3F05D5AA1BA1B66FF4E9ED8A3D909F600864D111A878C45A72C637C053AC241DC68E3E97C363ECF4008418728B2787BC8FFCCF30CA498FCF7DBE07C16AF4E84CA79B0C89C950E2B0E722D4A7115C5823922BFC382544F249F5E411E792090257F712A94B4759EBF53E8557BDF0FBC3BAC4ADE9F23EF39D341534A5AC46EBF5B894CC31196C9CA6F0852D71CA7499E2C9E2B304CA79F9B30C35518C6AEC1B811E3E13D56143B352F1032682C5EE5EE4CDB1E9A308A54255F029A85#)(e #010001#)(d #10D8E62E37F016ACE88D8C6BC67BA10578628001F9771312429B918A7833752102F42A6B776CBED5AFAEA638AE9B7035C32EDEF825DBCAF6490C767D537425DB120F974B6BAF36B4A7540C4E4573818AE5FA52BB4796F0F27BFB7D534A964C7F2FD2CD3A1CC56DD2508DEF98E090B2BD40EE55EE22A41A17D53725EAE806D6F7EB24D55338ADCD6DF8A62A0FE5F55A45B9C074EA077A1EA693F1DE300CB781C5168AEB129E39CD7D98DA91C52F50CB3A8C86EF4728AB95AAB8F800ABA457CCAAF2D55A223A269C06622E3C8CD1EC3788B00C83702F398B664B76B63C4F675AB4E6AB81AF46C7217EC28C588D3147C452DA86DC46633E3D0DD59C17E94C240419#) (p #00E5BE779EA834FF8B5EC9244C5E40FF05838D94DCE6F2092E672715AC6BFC611E5E08822E7519C92CE2C68052DBF5C8B52379D410071E0E272C8BF91D1F000DADD7C531DE792E7924F8338555C67E57408CA446BEABDF3DEC9F158A50DE7C88FB4B48F9A37DF92AE25C9F515541E11CCD1A14C69A753403AE4D2CE88CD5302CED#)(q #00FB32852C38E3B7CF23B33B55BEFD8D2101BF3BBB4182DCD8DF6913708FA7A78DB424B12B9D45546462AB08D1930EC03B12F1A9E72424BDAC8E381119F8ED21A9DDC9136CD1BDE7FD5FE7C1CB26D848A9E277EFFB06EBD1BD78C0A84BA247507258D6F031EDC2449FBB5E6816CA9F8C6ECB6026A887B6C532568B1021884D88F9#)(u #68CD81AF2E52DDDA2F493CBA9EFE6F37BC8333720907284CC6B9F6D39D6CA9101D7D431075A35109E890535DB8625D480AA9635D5EF584ADA12B408A359C53960341F28A5554952420A235BDE693CC94931DAE820D1FEE3020ECCFAD1AE87A890D071EB9AAEC7EF76E0C0774529F6F92BDD2FCDDE04BEC7E51C5B25FF93B6365#)))";
+const char* self_sk = "(public-key  (rsa (n #00E16F15FF8FD8D493D410D447EABF68AFCD316D7D2B66189C29A63C661152C5A089018C635AE4C4B5DEDA5929740E6AAA495719DC6C0966268C8303951B6D3EBF460FD475EAE3F05D5AA1BA1B66FF4E9ED8A3D909F600864D111A878C45A72C637C053AC241DC68E3E97C363ECF4008418728B2787BC8FFCCF30CA498FCF7DBE07C16AF4E84CA79B0C89C950E2B0E722D4A7115C5823922BFC382544F249F5E411E792090257F712A94B4759EBF53E8557BDF0FBC3BAC4ADE9F23EF39D341534A5AC46EBF5B894CC31196C9CA6F0852D71CA7499E2C9E2B304CA79F9B30C35518C6AEC1B811E3E13D56143B352F1032682C5EE5EE4CDB1E9A308A54255F029A85#)(e #010001#) ))";
+
+const char* oth_sk = "(public-key  (rsa (n #00C534FB9FF6E7728A1BB068F8B8B6AC7D7351225DF149076E4B13A23765C7B73B3DA0AA3880D8A2978FF3050BB91DABF5B1CF536D31F9D00A08F800CD85856AFFB388F04883DD2536EC0140572D6D41C2A8626094620559BA10BE0B964B1C887817255FD46C86F7BE860F11CD981D218F8140E864D2AB4C739B17ABAC2D9E89EEBAD35294ED9EC7374274D3AD38D77E9BD21B013CF921BB625633171C8B2FDE258A4468252AF2DF099FE667309104029705D929491AE1A2C2CBA440B70ED549B2991F58B61E45733C59091748FC719725C1D2593986C06E5B489A440FAEC683BC7C77B165B600E1B073C6C43B34B5D541A7825CD79C2861D79CD5E047BAE4415F#)(e #010001#) ))";
+
+
 
 int main(int argc, char** argv) {
+    fk_set_log_level(FK_LOG_LEVEL_TRACE);
+
     int* port = fk_arg_int("p", "port", "The port on wich we listen for incoming connections", 9922);
+    bool* au = fk_arg_bool("a", "add-user", "Add a new user to the passwd file", false);
+    
+    fk_traceln("Parsing arguments");
     fk_parse_args(argc, argv);
     
-    fk_tcp_listener_t listener;
+    fk_crypto_init();
 
-    fk_tcp_listener_new(&listener, *port);
+    if(*au == true) {
+        fk_traceln("Adding new user");
+        add_user();
+        exit(0);
+    }
+    check_passwd();
+    
+    fk_tcp_listener_t listener;
+    
+    FK_TRY_ERRNO(fk_tcp_listener_new(&listener, *port));
     fk_infoln("Listening on port %d", *port);
     fk_tcp_connection_t client;
 
-
-    while( true ) {
-        fk_tcp_accept(&listener, &client);
+    while(true) {
+        FK_TRY_ERRNO(fk_tcp_accept(&listener, &client));
         fk_infoln("Got connection from %s", inet_ntoa(client.addr.sin_addr));
-        switch (fork()) {
-        case -1:
-            fk_errorln("Could not fork: %s", strerror(errno));
-            return -1;
-            break;
-        case 0: {
-            fk_tcp_release(&listener);
-            int req_length;
-            read(client.sock, &req_length, sizeof(int));
-            char* req = malloc((req_length + 1) * sizeof(char));
-            read(client.sock, req, req_length);
+        
+        switch(fork()) {
+            case -1:
+                fk_errorln("Could not fork");
+                exit(1);
+                break;
+            case  0:
+                fk_tcp_release(&listener);
+                fk_crypto_tunnel_t tunnel;
+                fk_crypto_tunnel_new(&client, &tunnel, self_sk, self_pk, oth_sk);
+                
+                if(authorize_user(tunnel) != 0 ) {
+                    fk_crypto_tunnel_release(&tunnel);
+                    exit(1);
+                }   
 
-            
-
-            write(client.sock, &req_length, sizeof(int));
-            write(client.sock, req, req_length);
-            free(req);
-            fk_tcp_release(&client);
-            exit(0);
+                while(true) {
+                    fk_message_t req = fk_message_empty();
+                    fk_crypto_aes_message_read(tunnel, &req);
+                    
+                    fk_message_t resp = shell_dispatch(req.data, req.dlen);
+                    fk_crypto_aes_message_write(tunnel, resp);
+                    if(resp.code == 1) {
+                        fk_message_release(&req);
+                        fk_message_release(&resp);
+                        break;
+                    }
+                    fk_message_release(&req);
+                    fk_message_release(&resp);
+                }
+                fk_crypto_tunnel_release(&tunnel);
+                break;
+            default:
+                while(waitpid(-1,NULL,WNOHANG));
+                fk_tcp_release(&client);
+                break;
         }
-            break;
-        default:
-            fk_tcp_release(&client);
-            while(waitpid(-1,NULL,WNOHANG));
-            break;
-        } // switch(...)
-    } // while(true)
 
 
+    }
     return EXIT_SUCCESS;   
 }

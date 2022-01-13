@@ -13,7 +13,7 @@ typedef struct fk_tcp_listener_t {
 typedef struct fk_tcp_connection_t {
     int sock;
     struct sockaddr_in addr;
-}fk_tcp_connection_t;
+}fk_tcp_connection_t; // TODO: Make connection be able tor ecieve socket parameters and search for a new port if the default is not available
 
 #define fk_message_metatada_len 32
 
