@@ -8,8 +8,7 @@
 #include <unistd.h>
 #include <wait.h>
 
-void* split(char *line, int linelen, int* size)
-{
+void* split(char *line, int linelen, int* size) {
     void* result;
     int spaces = 0;
     for (int i = 0; i <= linelen; ++i) {
@@ -33,7 +32,59 @@ void* split(char *line, int linelen, int* size)
     ((char**)result)[++rind] = NULL;
     *size = rind;
     return result;
+} // void* split(char *line, int linelen, int* size)
+
+typedef char** argv_t;
+
+void metasplit(argv_t command, int nwords, argv_t programs[32], int* nprograms, char operators[32][3], int* noperators ) {
+    int prev_index = 0;
+    int curr_index = 0;
+    while( curr_index < nwords ) {
+        if( (strcmp(command[curr_index], "|") == 0 ) || (strcmp(command[curr_index], ">") == 0 )
+         || (strcmp(command[curr_index], "2>") == 0 ) || (strcmp(command[curr_index], "<") == 0 ) 
+         || (strcmp(command[curr_index], "&&") == 0 ) || (strcmp(command[curr_index], "||") == 0 )) {
+            
+            strcpy(operators[*noperators++], command[curr_index]);
+            command[curr_index] = NULL;
+            programs[*nprograms++] = command + prev_index;
+            prev_index = curr_index + 1;
+        }
+        ++curr_index;
+    }
 }
+
+void launch(argv_t program, int inpipe[2], int outpipe[2], int errpipe[2]) {
+    switch (fork())
+    {
+    case -1:
+        fk_errorln("fork error in lauch");
+        exit(1);
+        break;
+    case 0:
+        if(inpipe[0] != -1 ) {
+            dup2(inpipe[0], STDIN_FILENO);
+            close(inpipe[0]);
+        }
+        dup2(outpipe[1], STDOUT_FILENO);
+        close(outpipe[1]);
+        close(outpipe[0]);
+        dup2(errpipe[1], STDERR_FILENO);
+        close(errpipe[1]);
+        close(errpipe[0]);
+        execvp(program[0], program);
+        break;
+    default:
+        return;
+        break;
+    }
+    
+}
+
+
+void pipe2msg(int pipe_rd, fk_message_t* msg) {
+    
+}
+
 
 fk_message_t fork_exec(int argc, char** argv ) {
     fk_message_t ret = fk_message_empty();
@@ -46,6 +97,40 @@ fk_message_t fork_exec(int argc, char** argv ) {
     int perr[2];
     pipe(pdes);
     pipe(perr);
+
+    for(int i = 0; i < argc; i++) {
+        fk_infoln("%s", argv[i]);
+    }
+
+    argv_t programs[32];
+    int nprograms = 0;
+    char operators[32][3];
+    int noperators = 0;
+
+    metasplit(argv, argc, programs, &nprograms, operators, &noperators);
+
+    for(int i = 0; i < nprograms; ++i) {
+        for(int j = 0; programs[i][j] != NULL; ++j) {
+            fk_infoln("%s", programs[i][j]);
+        }
+        fk_infoln("%s", operators[i]);
+    }
+
+    int c_pipe[2];
+    pipe(c_pipe);
+    int piperrs[32][2];
+    int nerrs = 0;
+    for(int op_index = 0, p_index = 0; p_index < nprograms; ++op_index) {
+        if( strcmp(operators[op_index], "|") == 0 ) {
+            int p[2];
+            pipe(p);
+            launch(programs[p_index++], c_pipe, p, piperrs[nerrs++]);
+            close(p[1]);
+            close(c_pipe[0]);
+            c_pipe[0] = p[0];
+        }
+    }
+
 
     switch (fork())
     {
@@ -102,6 +187,7 @@ fk_message_t fork_exec(int argc, char** argv ) {
         }
         close(perr[0]);
         wait(&ret.code);
+        ret.code = -ret.code;
         break;
     }
     ret.code = 0;
