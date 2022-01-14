@@ -8,3 +8,9 @@ build/
 
 #vscode
 .vscode
+
+#trash
+*.zip
+aes-gcrypt.c
+rsa-gcrypt.c
+scratchpad.c
